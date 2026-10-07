@@ -1,0 +1,82 @@
+<!-- barra lateral principal -->
+<aside class="admin-sidebar" id="adminSidebar" aria-label="Navegação principal">
+    <div class="sidebar-header">
+        <a class="brand-mark" href="../../index.html" aria-label="Semáforo - Painel de gestão de tráfego">
+            <span class="brand-icon"><i class="bi bi-stoplights-fill" aria-hidden="true"></i></span>
+            <span class="brand-copy">
+        <span class="brand-title">Semáforo</span>
+        <span class="brand-subtitle">Gestão de tráfego urbano</span>
+      </span>
+        </a>
+    </div>
+    <!-- fim barra lateral principal -->
+
+    <!-- navegação da sidebar -->
+    <nav class="sidebar-nav">
+        <a class="nav-link" href="../index/index.html">
+            <span class="nav-icon"><i class="bi bi-speedometer2" aria-hidden="true"></i></span>
+            <span class="nav-text">Dashboard</span>
+        </a>
+
+        <!-- grupo Semáforo (submenu) -->
+        <button
+            class="nav-link nav-accordion-toggle"
+            type="button"
+            aria-expanded="true"
+            aria-controls="semaforo-submenu"
+        >
+            <span class="nav-icon"><i class="bi bi-stoplights" aria-hidden="true"></i></span>
+            <span class="nav-text">Semáforo</span>
+            <i class="bi bi-chevron-down nav-chevron" aria-hidden="true"></i>
+        </button>
+        <div class="nav-submenu" id="semaforo-submenu">
+            <a class="nav-sublink" href="../cadastros_semaforo/index.html">Cadastros</a>
+            <a class="nav-sublink" href="../simulador/index.html">Simulador</a>
+            <a class="nav-sublink" href="../monitoramento/index.html">Monitoramento</a>
+            <a class="nav-sublink" href="../gemeo_digital/index.html">Gêmeo Digital</a>
+        </div>
+        <!-- fim grupo Semáforo (submenu) -->
+
+        <!-- grupo Relatórios (submenu) -->
+        <button
+            class="nav-link nav-accordion-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="relatorios-submenu"
+        >
+            <span class="nav-icon"><i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i></span>
+            <span class="nav-text">Relatórios</span>
+            <i class="bi bi-chevron-down nav-chevron" aria-hidden="true"></i>
+        </button>
+        <div class="nav-submenu" id="relatorios-submenu" hidden>
+            <a class="nav-sublink" href="../logs_alteracao/index.html">Logs de alterações</a>
+        </div>
+        <!-- fim grupo Relatórios (submenu) -->
+
+        <!-- gestão de usuários -->
+        <a class="nav-link" href="../cadastros_usuarios/index.html">
+            <span class="nav-icon"><i class="bi bi-people" aria-hidden="true"></i></span>
+            <span class="nav-text">Usuários</span>
+        </a>
+    </nav>
+    <!-- fim navegação da sidebar -->
+
+    <!-- cartão do usuário logado -->
+    <div class="sidebar-user">
+        <img
+            class="avatar-img avatar-md sidebar-user-avatar"
+            src="../../assets/images/avatar/avatar.jpg"
+            alt="Administrador"
+        />
+        <strong>Administrador</strong>
+        <small>Operação de tráfego</small>
+    </div>
+    <!-- fim cartão do usuário logado -->
+
+    <!-- rodapé da sidebar  -->
+    <div class="sidebar-footer">
+        <span class="status-dot"></span>
+        <span class="sidebar-footer-text">Rede de semáforos online</span>
+    </div>
+    <!-- fim rodapé da sidebar -->
+</aside>
