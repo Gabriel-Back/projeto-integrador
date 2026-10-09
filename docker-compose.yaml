@@ -12,6 +12,17 @@ services:
       - "3336:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto-projeto-integrador
+    restart: always
+    ports:
+      - "1883:1883"   # MQTT TCP (Laravel)
+      - "8000:9001"   # WebSocket (seu JS)
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+
 volumes:
   mysql_data:
     driver: local
