@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Log as LogModel;
-use App\Services\NormalizadorDeComando;
+use App\Services\InterpretadorDeMensagem;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use PhpMqtt\Client\Facades\MQTT;
@@ -43,7 +43,7 @@ class EscutarMqtt extends Command
     /**
      * Executa o comando.
      */
-    public function handle(NormalizadorDeComando $normalizador): int
+    public function handle(InterpretadorDeMensagem $interpretador): int
     {
         $topico = (string) config('mqtt-client.topic_estado', 'semaforo/estado');
 
@@ -58,8 +58,8 @@ class EscutarMqtt extends Command
                 // MQTT::connection() ja cria e conecta o cliente.
                 $mqtt = MQTT::connection();
 
-                $mqtt->subscribe($topico, function (string $topicoRecebido, string $payload) use ($normalizador) {
-                    $this->persistir($topicoRecebido, $payload, $normalizador);
+                $mqtt->subscribe($topico, function (string $topicoRecebido, string $payload) use ($interpretador) {
+                    $this->persistir($topicoRecebido, $payload, $interpretador);
                 }, MqttClient::QOS_AT_LEAST_ONCE);
 
                 $this->line('Conectado ao broker. Aguardando mensagens...');
@@ -95,17 +95,19 @@ class EscutarMqtt extends Command
     }
 
     /**
-     * Grava a mensagem bruta e seu comando normalizado na tabela logs.
+     * Grava a mensagem bruta e os campos interpretados (JSON do ESP32 ou
+     * comando de texto) na tabela logs.
      */
-    protected function persistir(string $topico, string $payload, NormalizadorDeComando $normalizador): void
+    protected function persistir(string $topico, string $payload, InterpretadorDeMensagem $interpretador): void
     {
         try {
-            $log = LogModel::create([
+            $atributos = $interpretador->interpretar($payload);
+
+            $log = LogModel::create(array_merge([
                 'topico' => $topico,
                 'payload' => $payload,
-                'comando' => $normalizador->normalizar($payload),
                 'recebido_em' => now(),
-            ]);
+            ], $atributos));
 
             $this->info("Recebido #{$log->id} [{$topico}]: {$payload}");
         } catch (\Throwable $e) {

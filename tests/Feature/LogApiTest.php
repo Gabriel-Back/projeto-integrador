@@ -14,7 +14,7 @@ class LogApiTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * Cria tres logs com horarios crescentes (mais antigo primeiro).
+     * Cria tres logs de texto com horarios crescentes (mais antigo primeiro).
      */
     private function criarLogs(): array
     {
@@ -42,6 +42,26 @@ class LogApiTest extends TestCase
         return [$primeiro, $segundo, $terceiro];
     }
 
+    /**
+     * Cria um log no formato JSON do ESP32.
+     */
+    private function criarLogEsp32(array $atributos = []): Log
+    {
+        $dados = array_merge([
+            'dispositivo' => 'semaforo',
+            'cor' => 'vermelho',
+            'porta' => 26,
+            'estado' => true,
+            'ciclo' => false,
+        ], $atributos);
+
+        return Log::create(array_merge($dados, [
+            'topico' => 'semaforo/estado',
+            'payload' => json_encode($dados),
+            'recebido_em' => now(),
+        ]));
+    }
+
     public function test_lista_logs_em_ordem_decrescente(): void
     {
         [$primeiro, $segundo, $terceiro] = $this->criarLogs();
@@ -51,7 +71,11 @@ class LogApiTest extends TestCase
         $resposta->assertOk()
             ->assertJsonStructure([
                 'data' => [
-                    '*' => ['id', 'topico', 'payload', 'comando', 'recebido_em'],
+                    '*' => [
+                        'id', 'topico', 'payload', 'comando',
+                        'dispositivo', 'cor', 'porta', 'estado', 'ciclo',
+                        'recebido_em',
+                    ],
                 ],
                 'links',
                 'meta',
@@ -70,6 +94,83 @@ class LogApiTest extends TestCase
         $resposta->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.comando', 'parar');
+    }
+
+    public function test_recurso_retorna_campos_do_esp32_tipados(): void
+    {
+        $this->criarLogEsp32();
+
+        $resposta = $this->getJson('/api/logs');
+
+        $resposta->assertOk()
+            ->assertJsonPath('data.0.dispositivo', 'semaforo')
+            ->assertJsonPath('data.0.cor', 'vermelho')
+            ->assertJsonPath('data.0.porta', 26)
+            ->assertJsonPath('data.0.estado', true)
+            ->assertJsonPath('data.0.ciclo', false);
+
+        $item = $resposta->json('data.0');
+
+        $this->assertIsInt($item['porta']);
+        $this->assertIsBool($item['estado']);
+        $this->assertIsBool($item['ciclo']);
+    }
+
+    public function test_lista_logs_filtra_por_dispositivo(): void
+    {
+        $this->criarLogEsp32(['dispositivo' => 'semaforo']);
+        $this->criarLogEsp32(['dispositivo' => 'outro']);
+
+        $resposta = $this->getJson('/api/logs?dispositivo=semaforo');
+
+        $resposta->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.dispositivo', 'semaforo');
+    }
+
+    public function test_lista_logs_filtra_por_cor_ignorando_maiusculas(): void
+    {
+        $this->criarLogEsp32(['cor' => 'vermelho']);
+        $this->criarLogEsp32(['cor' => 'verde']);
+
+        $resposta = $this->getJson('/api/logs?cor=VERMELHO');
+
+        $resposta->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.cor', 'vermelho');
+    }
+
+    public function test_lista_logs_filtra_por_estado(): void
+    {
+        $ligado = $this->criarLogEsp32(['estado' => true]);
+        $this->criarLogEsp32(['estado' => false]);
+
+        $resposta = $this->getJson('/api/logs?estado=true');
+
+        $resposta->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $ligado->id)
+            ->assertJsonPath('data.0.estado', true);
+    }
+
+    public function test_lista_logs_filtra_por_ciclo_false(): void
+    {
+        $this->criarLogEsp32(['ciclo' => true]);
+        $comCicloFalso = $this->criarLogEsp32(['ciclo' => false]);
+
+        $resposta = $this->getJson('/api/logs?ciclo=false');
+
+        $resposta->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $comCicloFalso->id)
+            ->assertJsonPath('data.0.ciclo', false);
+    }
+
+    public function test_filtro_booleano_invalido_retorna_422(): void
+    {
+        $this->getJson('/api/logs?estado=sim')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('estado');
     }
 
     public function test_retorna_o_ultimo_log(): void

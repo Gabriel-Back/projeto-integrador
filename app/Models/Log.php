@@ -29,6 +29,11 @@ class Log extends Model
         'topico',
         'payload',
         'comando',
+        'dispositivo',
+        'cor',
+        'porta',
+        'estado',
+        'ciclo',
         'recebido_em',
     ];
 
@@ -40,6 +45,9 @@ class Log extends Model
     protected function casts(): array
     {
         return [
+            'porta' => 'integer',
+            'estado' => 'boolean',
+            'ciclo' => 'boolean',
             'recebido_em' => 'datetime',
         ];
     }

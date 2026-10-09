@@ -25,6 +25,11 @@ class LogResource extends JsonResource
             'topico' => $this->topico,
             'payload' => $this->payload,
             'comando' => $this->comando,
+            'dispositivo' => $this->dispositivo,
+            'cor' => $this->cor,
+            'porta' => $this->porta,
+            'estado' => $this->estado,
+            'ciclo' => $this->ciclo,
             'recebido_em' => $this->recebido_em?->toIso8601String(),
         ];
     }

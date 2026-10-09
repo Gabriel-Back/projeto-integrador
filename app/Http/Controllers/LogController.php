@@ -7,6 +7,7 @@ use App\Models\Log;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LogFacade;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -18,17 +19,42 @@ class LogController extends Controller
      * Lista paginada dos logs, mais recentes primeiro.
      *
      * Filtros opcionais via query string:
-     *   - comando   (igualdade)
-     *   - de        (recebido_em >= de)
-     *   - ate       (recebido_em <= ate)
-     *   - per_page  (itens por pagina, padrao 50)
+     *   - comando     (igualdade)
+     *   - dispositivo (igualdade)
+     *   - cor         (igualdade, normalizada para minusculas)
+     *   - estado      (true/false)
+     *   - ciclo       (true/false)
+     *   - de          (recebido_em >= de)
+     *   - ate         (recebido_em <= ate)
+     *   - per_page    (itens por pagina, padrao 50)
      */
     public function index(Request $request)
     {
+        $request->validate([
+            'estado' => ['nullable', Rule::in(['true', 'false', '1', '0'])],
+            'ciclo' => ['nullable', Rule::in(['true', 'false', '1', '0'])],
+        ]);
+
         $consulta = Log::query();
 
         if ($request->filled('comando')) {
             $consulta->where('comando', $request->query('comando'));
+        }
+
+        if ($request->filled('dispositivo')) {
+            $consulta->where('dispositivo', trim((string) $request->query('dispositivo')));
+        }
+
+        if ($request->filled('cor')) {
+            $consulta->where('cor', mb_strtolower(trim((string) $request->query('cor'))));
+        }
+
+        if ($request->filled('estado')) {
+            $consulta->where('estado', $this->paraBooleano((string) $request->query('estado')));
+        }
+
+        if ($request->filled('ciclo')) {
+            $consulta->where('ciclo', $this->paraBooleano((string) $request->query('ciclo')));
         }
 
         if ($request->filled('de')) {
@@ -179,5 +205,13 @@ class LogController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * Converte os valores aceitos pelo filtro booleano (true/false/1/0).
+     */
+    protected function paraBooleano(string $valor): bool
+    {
+        return in_array(mb_strtolower(trim($valor)), ['true', '1'], true);
     }
 }

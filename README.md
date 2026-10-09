@@ -16,19 +16,18 @@ consumir apenas a API.
 
 ## Configuração
 
-As variáveis de MQTT ficam no `.env`:
+As variáveis de MQTT ficam no `.env` (o broker público da HiveMQ já vem
+configurado):
 
 ```env
-MQTT_HOST=127.0.0.1
+MQTT_HOST=broker.hivemq.com
 MQTT_PORT=1883
 MQTT_CLIENT_ID=laravel-semaforo
 MQTT_TOPIC_ESTADO=semaforo/estado
 ```
 
 > `MQTT_PORT` é a porta **TCP** do broker (não confunda com a porta 8000 de
-> WebSocket, usada pelo Paho no navegador). Se você usa o broker do repositório
-> `projeto-semaforo/docker`, o listener TCP está em `1880`, então ajuste
-> `MQTT_PORT=1880`.
+> WebSocket, usada pelo Paho no navegador).
 
 O CORS da API é configurável por `CORS_ALLOWED_ORIGINS` (lista separada por
 vírgula; use `*` em desenvolvimento). O timezone da aplicação é
@@ -54,17 +53,35 @@ O comando `mqtt:escutar` reconecta automaticamente a cada 3 segundos caso o
 broker ainda não tenha subido ou caia, e encerra com segurança em
 `Ctrl+C`/SIGTERM.
 
-### Testando com o MQTTX
+### Formato da mensagem (ESP32)
 
-1. Crie uma conexão no [MQTTX](https://mqttx.app/) apontando para
-   `mqtt://127.0.0.1:1883` (ou a porta TCP do seu broker).
-2. Publique no tópico `semaforo/estado`, por exemplo:
-   - `iniciar`
-   - `parar`
-   - `ligarintermitente`
-   - `{"msg":"tempovermelho=5"}`
-   - `"tempoverde=4"`
-3. Cada publicação deve aparecer no terminal do `mqtt:escutar` e na API.
+O ESP32 publica um objeto JSON no tópico `semaforo/estado`:
+
+```json
+{
+  "dispositivo": "semaforo",
+  "cor": "vermelho",
+  "porta": 26,
+  "estado": true,
+  "ciclo": false
+}
+```
+
+O `payload` bruto é sempre gravado como chegou. Quando o JSON é válido, o
+Laravel também preenche `dispositivo`, `cor` (em minúsculas), `porta`, `estado`
+e `ciclo`. Campos ausentes ou com tipo errado ficam `null`. Mensagens de texto
+(ex.: `iniciar`) continuam sendo gravadas apenas com `payload` e `comando`.
+
+### Testando a publicação
+
+Com o MQTTX, crie uma conexão apontando para `broker.hivemq.com:1883` e publique
+no tópico `semaforo/estado`. Ou use o `mosquitto_pub`:
+
+```bash
+mosquitto_pub -h broker.hivemq.com -t "semaforo/estado" -m '{"dispositivo":"semaforo","cor":"vermelho","porta":26,"estado":true,"ciclo":false}'
+```
+
+Cada publicação deve aparecer no terminal do `mqtt:escutar` e na API.
 
 ## API
 
@@ -74,15 +91,23 @@ Todos os endpoints retornam JSON com o formato:
 {
   "id": 12,
   "topico": "semaforo/estado",
-  "payload": "tempovermelho=5",
-  "comando": "tempovermelho=5",
+  "payload": "{\"dispositivo\":\"semaforo\",\"cor\":\"vermelho\",\"porta\":26,\"estado\":true,\"ciclo\":false}",
+  "comando": null,
+  "dispositivo": "semaforo",
+  "cor": "vermelho",
+  "porta": 26,
+  "estado": true,
+  "ciclo": false,
   "recebido_em": "2026-10-08T14:32:10-03:00"
 }
 ```
 
+> `porta` é devolvido como número e `estado`/`ciclo` como booleanos de verdade
+> (não strings), prontos para o semáforo digital em JS espelhar o ESP32.
+
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/api/logs` | Lista paginada, mais recentes primeiro. Filtros: `?comando=`, `?de=`, `?ate=`, `?per_page=` |
+| GET | `/api/logs` | Lista paginada, mais recentes primeiro. Filtros: `?dispositivo=`, `?cor=`, `?estado=`, `?ciclo=`, `?comando=`, `?de=`, `?ate=`, `?per_page=` |
 | GET | `/api/logs/ultimo` | Último registro |
 | GET | `/api/logs/novos?depois_do_id=123` | Logs com `id > 123`, em ordem crescente (ideal para polling de ~500 ms) |
 | GET | `/api/logs/stream` | Server-Sent Events; envia cada novo log em tempo real (suporta `Last-Event-ID`) |
@@ -93,7 +118,10 @@ Exemplos com `curl`:
 # Lista paginada
 curl "http://localhost:8000/api/logs"
 
-# Filtros
+# Filtros por dispositivo/cor/estado/ciclo
+curl "http://localhost:8000/api/logs?dispositivo=semaforo&cor=vermelho&estado=true&ciclo=false"
+
+# Filtros por período
 curl "http://localhost:8000/api/logs?comando=parar&de=2026-10-01&ate=2026-10-08"
 
 # Último registro
@@ -122,7 +150,8 @@ composer test
 Os testes cobrem:
 
 - `NormalizadorDeComando` (regras de normalização do comando).
-- Endpoints `/api/logs`, `/api/logs/ultimo` e `/api/logs/novos`.
+- `InterpretadorDeMensagem` (JSON do ESP32, campos faltando, tipos errados, texto).
+- Endpoints `/api/logs` (incluindo os novos filtros), `/api/logs/ultimo` e `/api/logs/novos`.
 
 ## Estrutura relevante
 
@@ -132,7 +161,9 @@ app/
 ├── Http/Controllers/LogController.php # endpoints da API
 ├── Http/Resources/LogResource.php     # formato JSON
 ├── Models/Log.php                     # model da tabela logs
-└── Services/NormalizadorDeComando.php # normalizacao do comando
+└── Services/
+    ├── InterpretadorDeMensagem.php    # interpreta o JSON do ESP32
+    └── NormalizadorDeComando.php      # normalizacao do comando de texto
 config/
 ├── cors.php                           # CORS da API
 └── mqtt-client.php                    # config do broker MQTT
