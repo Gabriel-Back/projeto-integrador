@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ComandoController;
 use App\Http\Controllers\LogController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,3 +26,19 @@ Route::get('/logs/novos', [LogController::class, 'novos']);
 
 // Server-Sent Events com cada novo log em tempo real.
 Route::get('/logs/stream', [LogController::class, 'stream']);
+
+/*
+|--------------------------------------------------------------------------
+| Fluxo reverso (Laravel -> ESP32)
+|--------------------------------------------------------------------------
+|
+| A API recebe o comando do frontend, publica em `semaforo/comando` e guarda
+| o historico em `comandos_enviados`. O `mqtt:escutar` NAO assina este topico.
+|
+*/
+
+// Historico paginado dos comandos enviados (filtros opcionais).
+Route::get('/comandos', [ComandoController::class, 'index']);
+
+// Recebe e publica um comando para o ESP32.
+Route::post('/comandos', [ComandoController::class, 'store']);
