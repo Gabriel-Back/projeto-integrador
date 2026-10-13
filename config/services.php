@@ -35,4 +35,19 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | ViaCEP (consulta de CEP)
+    |--------------------------------------------------------------------------
+    |
+    | API avulsa de consulta de CEP, sem relacao com o semaforo/MQTT. A URL e
+    | concatenada com `/{cep}/json/` e o resultado e cacheado por 24 horas.
+    |
+    */
+
+    'viacep' => [
+        'base_uri' => env('VIACEP_BASE_URI', 'https://viacep.com.br/ws'),
+        'cache_ttl' => (int) env('VIACEP_CACHE_TTL', 86400),
+    ],
+
 ];

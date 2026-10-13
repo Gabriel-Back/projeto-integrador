@@ -148,6 +148,8 @@ Todos os endpoints retornam JSON com o formato:
 | GET | `/api/logs/stream` | Server-Sent Events; envia cada novo log em tempo real (suporta `Last-Event-ID`) |
 | GET | `/api/comandos` | Histórico paginado dos comandos enviados, mais recentes primeiro. Filtros: `?dispositivo=`, `?comando=`, `?per_page=` |
 | POST | `/api/comandos` | Valida e publica um comando em `semaforo/comando` (QoS 1) e grava o histórico |
+| GET | `/api/cep/{cep}` | Consulta um CEP no ViaCEP (aceita com ou sem hífen/pontos/espaços) |
+| POST | `/api/cep` | Igual ao anterior, mas o CEP vai no corpo JSON: `{ "cep": "01001-000" }` |
 
 Exemplos com `curl`:
 
@@ -205,6 +207,53 @@ MQTTX (ou `mosquitto_sub -h broker.hivemq.com -t "semaforo/comando" -v`).
 > desenvolvimento, defina `PHP_CLI_SERVER_WORKERS=4` no `.env` antes de subir o
 > `php artisan serve`.
 
+## Consulta de CEP (API avulsa)
+
+API independente do semáforo/MQTT: não usa a tabela `logs` nem o broker e não
+cria tabelas. Consulta o ViaCEP e devolve o endereço. A URL base e o tempo de
+cache (24h) ficam em `config/services.php` (`VIACEP_BASE_URI` e
+`VIACEP_CACHE_TTL` no `.env`).
+
+O CEP é aceito com ou sem hífen/pontos/espaços (`01001-000`, `01001000`,
+`01.001-000`); tudo que não for dígito é removido antes de exigir 8 números.
+
+```bash
+# CEP pela URL
+curl "http://localhost:8000/api/cep/01001000"
+
+# CEP com hífen (mesmo resultado)
+curl "http://localhost:8000/api/cep/01001-000"
+
+# CEP pelo corpo JSON
+curl -X POST "http://localhost:8000/api/cep" \
+  -H "Content-Type: application/json" \
+  -d '{"cep":"01.001-000"}'
+```
+
+Resposta de sucesso (`200`):
+
+```json
+{
+  "cep": "01001-000",
+  "logradouro": "Praça da Sé",
+  "complemento": "lado ímpar",
+  "bairro": "Sé",
+  "cidade": "São Paulo",
+  "uf": "SP",
+  "estado": "São Paulo",
+  "ibge": "3550308",
+  "ddd": "11",
+  "endereco_completo": "Praça da Sé, lado ímpar - Sé, São Paulo/SP, CEP 01001-000"
+}
+```
+
+Erros:
+
+- **422** – CEP inválido: `{ "mensagem": "CEP inválido. Informe 8 números." }`
+- **404** – CEP inexistente: `{ "mensagem": "CEP não encontrado." }`
+- **502** – ViaCEP fora do ar/timeout:
+  `{ "mensagem": "Serviço de CEP indisponível. Tente novamente em instantes." }`
+
 ## Testes
 
 ```bash
@@ -220,6 +269,8 @@ Os testes cobrem:
 - Endpoints `/api/logs` (incluindo os novos filtros), `/api/logs/ultimo` e `/api/logs/novos`.
 - Endpoints `/api/comandos` (validação, publicação no tópico configurado com a
   facade MQTT substituída por mock, histórico e falha do broker → 503).
+- Endpoints `/api/cep` (validação/formatação do CEP, sucesso, 404, 502 e uso de
+  cache), sempre com `Http::fake` — sem acessar a internet.
 
 ## Estrutura relevante
 
@@ -227,23 +278,32 @@ Os testes cobrem:
 app/
 ├── Console/Commands/EscutarMqtt.php       # comando mqtt:escutar (só recebe estados)
 ├── Enums/ComandoSemaforo.php              # comandos aceitos (iniciar, parar, intermitente)
-├── Exceptions/FalhaAoPublicarComando.php  # falha ao publicar no broker (vira 503)
+├── Exceptions/
+│   ├── FalhaAoPublicarComando.php         # falha ao publicar no broker (vira 503)
+│   ├── CepNaoEncontradoException.php      # CEP inexistente (vira 404)
+│   └── ViaCepIndisponivelException.php    # ViaCEP fora do ar/timeout (vira 502)
 ├── Http/Controllers/
 │   ├── LogController.php                  # endpoints de /api/logs
-│   └── ComandoController.php              # endpoints de /api/comandos
-├── Http/Requests/EnviarComandoRequest.php # validação do POST /api/comandos
+│   ├── ComandoController.php              # endpoints de /api/comandos
+│   └── CepController.php                  # endpoints de /api/cep
+├── Http/Requests/
+│   ├── EnviarComandoRequest.php           # validação do POST /api/comandos
+│   └── BuscarCepRequest.php               # formata/valida o CEP
 ├── Http/Resources/
 │   ├── LogResource.php                    # formato JSON dos logs
-│   └── ComandoResource.php                # formato JSON dos comandos
+│   ├── ComandoResource.php                # formato JSON dos comandos
+│   └── EnderecoResource.php               # formato JSON do endereço (CEP)
 ├── Models/
 │   ├── Log.php                            # tabela logs (recebido do ESP32)
 │   └── ComandoEnviado.php                 # tabela comandos_enviados (enviado ao ESP32)
 └── Services/
     ├── InterpretadorDeMensagem.php        # interpreta o JSON do ESP32
     ├── NormalizadorDeComando.php          # normalizacao do comando de texto
-    └── PublicadorDeComando.php            # publica em semaforo/comando (fluxo reverso)
+    ├── PublicadorDeComando.php            # publica em semaforo/comando (fluxo reverso)
+    └── ViaCepService.php                  # consulta de CEP no ViaCEP (API avulsa)
 config/
 ├── cors.php                               # CORS da API
-└── mqtt-client.php                        # config do broker MQTT (listener + publicador)
+├── mqtt-client.php                        # config do broker MQTT (listener + publicador)
+└── services.php                           # config do ViaCEP (URL base + cache)
 routes/api.php                             # rotas da API
 ```

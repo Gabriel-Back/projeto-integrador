@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CepController;
 use App\Http\Controllers\ComandoController;
 use App\Http\Controllers\LogController;
 use Illuminate\Support\Facades\Route;
@@ -42,3 +43,19 @@ Route::get('/comandos', [ComandoController::class, 'index']);
 
 // Recebe e publica um comando para o ESP32.
 Route::post('/comandos', [ComandoController::class, 'store']);
+
+/*
+|--------------------------------------------------------------------------
+| Consulta de CEP (API avulsa)
+|--------------------------------------------------------------------------
+|
+| Nada a ver com MQTT/semaforo: consulta o ViaCEP e devolve o endereco.
+| As duas rotas usam o mesmo controller/service.
+|
+*/
+
+// CEP na URL (ex.: /api/cep/01001-000).
+Route::get('/cep/{cep}', [CepController::class, 'consultar']);
+
+// CEP no corpo JSON (ex.: { "cep": "01001-000" }).
+Route::post('/cep', [CepController::class, 'consultar']);
